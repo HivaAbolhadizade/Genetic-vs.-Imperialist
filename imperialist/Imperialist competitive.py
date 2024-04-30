@@ -1,106 +1,157 @@
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import random
+import math
 
-class ImperialistCompetitiveAlgorithm:
-    def __init__(self, num_countries, num_dimensions, max_iter, lower_bound, upper_bound):
-        self.num_countries = num_countries  # Number of countries
-        self.num_dimensions = num_dimensions 
-        self.max_iter = max_iter  # Maximum iterations
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
-        self.population = None
-        self.imperialists = None  # Imperialists
-        self.colonies = None   # Colonies
-        self.imperialist_costs = None  # Costs of imperialists
-        self.colonies_costs = None  # Costs of colonies
-        self.best_solution = None  
-        self.best_cost = float('inf')
+# Step 1: Initialization of the Population
+def initialize_population(population_size, dimension):
+    population = []
+    for _ in range(population_size):
+        individual = [random.random() for _ in range(dimension)]
+        population.append(individual)
+    return population
 
-    # Step 1: Initialization of the Population
-    def initialize_population(self):
-        self.population = [[random.uniform(self.lower_bound, self.upper_bound) for _ in range(self.num_dimensions)] 
-                           for _ in range(self.num_countries)]
-        self.imperialists = self.population.copy()
-        self.colonies = [[0] * self.num_dimensions for _ in range(self.num_countries)]
-        self.imperialist_costs = [float('inf')] * self.num_countries
-        self.colonies_costs = [float('inf')] * self.num_countries
+import math
 
-    # Step 5: Evaluation of the Population
-    def evaluate_population(self, objective_function):
-        for i in range(self.num_countries):
-            cost = objective_function(self.population[i])
-            if cost < self.imperialist_costs[i]:
-                self.imperialist_costs[i] = cost
-                self.imperialists[i] = self.population[i]
-        self.best_cost = min(self.imperialist_costs)
-        self.best_solution = self.imperialists[self.imperialist_costs.index(self.best_cost)]
+# Step 2: Homogenization Policy of Colonies
+def homogenization_policy(colonies, target_value, beta):
+    homogenized_colonies = []
+    for colony in colonies:
+        homogenized_colony = [colony[i] + beta * (target_value[i] - colony[i]) for i in range(len(colony))]
+        homogenized_colonies.append(homogenized_colony)
+    return homogenized_colonies
 
-    # Step 2: Update Colonies
-    def update_colonies(self):
-        for i in range(self.num_countries):
-            for j in range(self.num_countries):
-                if i != j:
-                    if self.imperialist_costs[i] > self.imperialist_costs[j]:
-                        self.colonies[i] = self.population[j]
-                        self.colonies_costs[i] = self.imperialist_costs[j]
+# Step 3: Revolution and Sudden Change of Colonies
+def revolution(colonies, revolt_prob):
+    for i in range(len(colonies)):
+        if random.random() < revolt_prob:
+            colonies[i] = [random.random() for _ in range(len(colonies[0]))]
+    return colonies
 
-    # Step 3: Update Imperialists
-    def update_imperialists(self):
-        for i in range(self.num_countries):
-            if random.random() < 0.5:
-                delta = [random.uniform(-1, 1) for _ in range(self.num_dimensions)]
-                self.imperialists[i] = [x + delta[idx] for idx, x in enumerate(self.imperialists[i])]
+# Step 4: Replacement of Colony with Imperialist
+def replacement(colonies, imperialists, objective_function):
+    new_colonies = []
+    for colony, imperialist in zip(colonies, imperialists):
+        if objective_function(colony) < objective_function(imperialist):
 
-    # Step 4: Replacement of Colony and Imperialist
-    def replace_colony_and_imperialist(self):
-        for i in range(self.num_countries):
-            if random.random() < 0.3:  # Arbitrary probability for replacement
-                random_idx = random.randint(0, self.num_countries - 1)
-                self.imperialists[i] = self.population[random_idx]
+            new_colonies.append(colony)
+        else:
+            new_colonies.append(imperialist)
+    return new_colonies
 
-    # Step 6: Colonial Competition
-    def colonial_competition(self):
-        for i in range(self.num_countries):
-            if random.random() < 0.5:  # Arbitrary probability for competition
-                random_idx = random.randint(0, self.num_countries - 1)
-                if self.imperialist_costs[i] < self.colonies_costs[random_idx]:
-                    self.colonies[i] = self.imperialists[i]
 
-    # Step 7: Collapse of the Empire
-    def empire_collapse(self):
-        for i in range(self.num_countries):
-            if random.random() < 0.1:  # Arbitrary probability for collapse
-                self.imperialist_costs[i] = float('inf')
+def calculate_imperial_power(imperialists, colonies, objective_function, xi):
+    imperial_power = []
+    for imperialist, imperialist_colonies in zip(imperialists, colonies):
+        imperialist_cost = objective_function(imperialist)
+        if not imperialist_colonies:
+            colonies_cost_mean = 0
+        else:
+            colonies_cost_mean = sum(objective_function(colony) for colony in imperialist_colonies) / len(imperialist_colonies)
+        total_cost = imperialist_cost + xi * colonies_cost_mean
+        imperial_power.append(total_cost)
 
-    # Step 8: Termination Condition
-    def termination_condition(self):
-        if self.best_cost < 1e-5:  # Arbitrary termination criterion
-            return True
-        return False
+    max_total_cost = max(imperial_power)
+    normalized_total_costs = [max_total_cost - total_cost for total_cost in imperial_power]
+    total_normalized_cost_sum = sum(normalized_total_costs)
+    power = [abs(total_cost / total_normalized_cost_sum) for total_cost in normalized_total_costs]
+    return power
 
-    # Step 9: Termination
-    def optimize(self, objective_function):
-        self.initialize_population()
-        for _ in range(self.max_iter):
-            self.evaluate_population(objective_function)
-            self.update_colonies()
-            self.update_imperialists()
-            self.replace_colony_and_imperialist()  # Step 4
-            self.colonial_competition()  # Step 6
-            self.empire_collapse()  # Step 7
-            if self.termination_condition():  # Step 8
-                break
-        return self.best_solution, self.best_cost
 
-def sphere_function(x):
-    return sum(xi**2 for xi in x)
+# Step 6: Competition between Imperialists
+def imperialist_competition(imperialists, imperial_power):
+    max_power = max(imperial_power)
+    normalized_powers = [power / max_power for power in imperial_power]
+    return [abs(power - random.random()) for power in normalized_powers]
 
-num_countries = 5
-num_dimensions = 5
-max_iter = 200
-lower_bound = -8
-upper_bound = 5
+# Step 7: Collapse of Empire
+def collapse_of_empire(imperialists, colonies, difference_vector):
+    min_difference_index = difference_vector.index(min(difference_vector))
+    if min_difference_index >= 0:
+        del imperialists[min_difference_index]
+        del colonies[min_difference_index]
+    return imperialists, colonies
 
-ica = ImperialistCompetitiveAlgorithm(num_countries, num_dimensions, max_iter, lower_bound, upper_bound)
-best_solution, best_cost = ica.optimize(sphere_function)
-print("Best solution:", best_solution)
-print("Best cost:", best_cost)
+# Step 8: Termination Condition
+def termination_condition(imperialists):
+    return len(imperialists) == 1
+
+# Step 9: End
+def end():
+    print("Algorithm terminated.")
+
+
+# Main function to run the algorithm
+def imperialist_competitive_algorithm(population_size, dimension, max_iterations, revolt_probability, objective_function, target_value, beta, xi):
+    population = initialize_population(population_size, dimension)
+    imperialists = initialize_population(population_size, dimension)
+    
+    mean_costs = []
+    min_costs = []
+    
+    for _ in range(max_iterations):
+        colonies = homogenization_policy(population, target_value, beta)
+        colonies = revolution(colonies, revolt_probability)
+        colonies = replacement(colonies, imperialists, objective_function)
+        
+        imperial_power = calculate_imperial_power(imperialists, colonies, objective_function, xi)
+        difference_vector = imperialist_competition(imperialists, imperial_power)
+        
+        imperialists, colonies = collapse_of_empire(imperialists, colonies, difference_vector)
+        
+       # Calculate and store mean and minimum costs
+        colony_costs = [objective_function(colony) for colony in colonies]
+
+        mean_costs.append(sum(colony_costs) / len(colonies))
+        min_costs.append(min(colony_costs))
+
+        
+        if termination_condition(imperialists):
+            end()
+            return mean_costs, min_costs  # Return mean and minimum costs
+    
+    end()  # If max_iterations reached without termination condition, print termination message
+    return mean_costs, min_costs
+
+population_size = 100
+dimension = 2  # Since we have two variables x and y
+max_iterations = 100
+revolt_probability = 0.1
+target_value = [0.5, 0.5]  # Example target value for x and y
+beta = 0.1
+xi = 0.1
+ 
+def objective_function(coordinates):
+    if isinstance(coordinates, (int, float)):
+        # If coordinates is a single float, return the function value for that coordinate
+        return coordinates * math.sin(4 * coordinates)  # Modify this expression accordingly
+    else:
+        # If coordinates is a tuple of (x, y), unpack and compute the function value
+        x, y = coordinates
+        return x * math.sin(4 * x) + y * math.sin(2 * y)
+
+
+
+# Example usage
+mean_costs, min_costs = imperialist_competitive_algorithm(population_size, dimension, max_iterations, revolt_probability, objective_function, target_value, beta, xi)
+print("Mean costs:", mean_costs)
+print("Minimum costs:", min_costs)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+# Extracting iteration numbers
+iterations = range(1, len(mean_costs) + 1)
+
+# Plotting mean costs
+ax.plot(iterations, mean_costs, zs=1, zdir='y', label='Mean Costs', color='b')
+
+# Plotting minimum costs
+ax.plot(iterations, min_costs, zs=2, zdir='y', label='Minimum Costs', color='r')
+
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Cost Type')
+ax.set_zlabel('Cost Value')
+
+plt.legend()
+plt.title('Evolution of Mean and Minimum Costs over Iterations')
+plt.show()
